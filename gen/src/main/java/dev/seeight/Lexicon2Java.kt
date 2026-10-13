@@ -387,18 +387,23 @@ object Lexicon2Java {
                     val output = v.output
                     val returnType: String
                     if (output != null) {
-                        if (!output.encoding.equals("application/json")) continue
-                        val schema = output.schema
-                        when (schema) {
-                            is LexiconObject -> {
-                                val returnTypeKey = "$key#Output"
-                                returnType = refMap[returnTypeKey] ?: throw IllegalStateException("No mapping for output $returnTypeKey")
-                            }
-                            is LexiconRef -> {
-                                returnType = getRemappedJavaRef(schema.ref)
-                            }
-                            else -> {
-                                returnType = defaultReturnType
+                        if (output.encoding == "*/*") {
+                            returnType = "byte[]"
+                        } else if (!output.encoding.equals("application/json"))
+                            continue
+                        else {
+                            val schema = output.schema
+                            when (schema) {
+                                is LexiconObject -> {
+                                    val returnTypeKey = "$key#Output"
+                                    returnType = refMap[returnTypeKey] ?: throw IllegalStateException("No mapping for output $returnTypeKey")
+                                }
+                                is LexiconRef -> {
+                                    returnType = getRemappedJavaRef(schema.ref)
+                                }
+                                else -> {
+                                    returnType = defaultReturnType
+                                }
                             }
                         }
                     } else {
@@ -435,7 +440,7 @@ object Lexicon2Java {
 
                     s2.append(")").append(" {\n")
 
-                    if (returnType != "" && (output?.encoding.equals("application/json") || output?.encoding.equals("none"))) {
+                    if (returnType != "" && (output?.encoding.equals("application/json") || output?.encoding.equals("none") || output?.encoding.equals("*/*"))) {
                         s2.append("\t\treturn api.xrpcGet(")
                         s2.append(getRemappedJavaRef(currentClassName)).append(".class, ")
                         s2.append(returnType).append(".class, ")

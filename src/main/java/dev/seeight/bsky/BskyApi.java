@@ -95,10 +95,8 @@ public class BskyApi {
         req.addHeader("Pragma", "no-cache");
     }
 
-    public <T extends BskyObject> T xrpcPost(Class<? extends BskyOperation> operationClass, Class<T> outputType, @Nullable BskyObject input) {
-        if (outputType == null) throw new IllegalArgumentException("Output type cannot be null.");
-
-        var path = operationClass.getAnnotation(OperationPath.class);
+    public <T> @Nullable T xrpcPost(@NotNull Class<? extends BskyOperation> operationClass, @NotNull Class<T> outputType, @Nullable BskyObject input) {
+		var path = operationClass.getAnnotation(OperationPath.class);
         if (path == null) throw new IllegalStateException("XRPC operation doesn't have an 'OperationPath' annotation.");
 
         var encoding = operationClass.getAnnotation(QEncoding.class);
@@ -152,6 +150,9 @@ public class BskyApi {
             }
 
             String string = response.body().string();
+			if (outputType == String.class || outputType == CharSequence.class) {
+				return (T) string;
+			}
             JsonElement e = JsonParser.parseString(string);
             if (response.code() != HttpURLConnection.HTTP_OK) {
                 if (e instanceof JsonObject z && z.has("error")) {
@@ -213,18 +214,20 @@ public class BskyApi {
 		}
 	}
 
-    public <T extends BskyObject> T xrpcGet(Class<? extends BskyOperation> operationType, Class<T> outputType, @Nullable BskyOperation operation) {
-        if (outputType == null) throw new IllegalArgumentException("Output type cannot be null.");
-
-        var path = operationType.getAnnotation(OperationPath.class);
+    public <T> @Nullable T xrpcGet(@NotNull Class<? extends BskyOperation> operationType, @NotNull Class<T> outputType, @Nullable BskyOperation operation) {
+		var path = operationType.getAnnotation(OperationPath.class);
         if (path == null) throw new IllegalStateException("XRPC operation doesn't have an 'OperationPath' annotation.");
 
         var encoding = operationType.getAnnotation(QEncoding.class);
         if (encoding == null) throw new IllegalStateException("XRPC operation doesn't have an 'QEncoding' annotation.");
 
-        if (!encoding.output().equals("application/json") && !encoding.output().equals("none")) {
+        if (!encoding.output().equals("application/json") && !encoding.output().equals("none") && !encoding.output().equals("*/*")) {
             throw new UnsupportedOperationException("Not implemented.");
         }
+
+		if (encoding.output().equals("*/*") && outputType != byte[].class) {
+			throw new IllegalArgumentException("Unsupported endpoint type: " + outputType.getName());
+		}
 
         var url = HttpUrl.get(this.pdsUrl + "/xrpc/" + path.value()).newBuilder();
         var req = new Request.Builder().get();
@@ -287,9 +290,17 @@ public class BskyApi {
                     throw new RuntimeException("Response code was not OK: " + response.code());
                 }
                 return null;
-            }
+            } else if (encoding.output().equals("*/*")) {
+				if (response.code() != HttpURLConnection.HTTP_OK) {
+					throw new RuntimeException("Response code was not OK: " + response.code());
+				}
+				return (T) response.body().bytes();
+			}
 
             String string = response.body().string();
+			if (outputType == String.class || outputType == CharSequence.class) {
+				return (T) string;
+			}
             try {
                 JsonElement e = JsonParser.parseString(string);
                 if (response.code() != HttpURLConnection.HTTP_OK) {

@@ -1,13 +1,24 @@
 # bsky-api
-A very rudimental implementation of ATProto in Java and OkHttpClient.
+A very rudimental and incomplete implementation of ATProto in Java and OkHttpClient.
 
 ## Disclaimer
 The purpose of this project is to provide an API to fetch posts and perform basic operations. Advanced features like messaging or account creation are not supported.
 
 ## Note
-Java classes are generated from the official `Lexicons`, using the nested "gen" gradle project. `Lexicons` aren't included in this project.
-You must have the lexicons in "gen/run/lexicons". You can get these lexicons from [Bsky's GitHub project](https://github.com/bluesky-social/atproto/tree/main/lexicons). 
-To generate and save the classes, run `Lexicon2Java.kt` (you need to run this from the root directory, not inside the gen folder). Classes are generated at `src/main/java`.<p>
+Java classes are generated from the official lexicons, using the nested "gen" gradle project. 
+<br>
+This project doesn't include any lexicons. To download the lexicon folder on atproto's repo,
+run these commands:
+```bash
+# from the project's root
+cd gen/run
+git clone --filter=blob:none --sparse https://github.com/bluesky-social/atproto.git
+cd atproto
+git sparse-checkout set lexicons
+```
+
+To generate and save the classes, run `Lexicon2Java.kt`. You must run it from the project's root, not from the root of the "gen" project. 
+Classes are generated at `src/main/java`.<p>
 You might need to delete some `Output` classes to get the project to compile.  
 
 ## Usage

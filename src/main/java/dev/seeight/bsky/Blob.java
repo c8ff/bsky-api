@@ -19,6 +19,7 @@
 package dev.seeight.bsky;
 
 public class Blob implements BskyObject {
+    public final String $type = "blob"; // TODO: This does not get add automatically on GsonCreator for some reason?
     public Ref ref;
     public String mimeType;
     public int size;

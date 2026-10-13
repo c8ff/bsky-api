@@ -70,6 +70,14 @@ object Lexicon2Java {
                     manualScanUnion(type, list)
                 }
             }
+            is LexiconPermissionSet -> {
+                for (p in a.permissions) {
+                    manualScanUnion(p, list)
+                }
+            }
+            is LexiconSubscription -> {
+                manualScanUnion(a.parameters, list)
+            }
             else -> {
                 if (a is LexiconBoolean || a is LexiconInteger || a is LexiconString || a is LexiconBytes || a is LexiconCidLink || a is LexiconPermission || a is LexiconBlob
                     || a is LexiconRef || a is LexiconUnknown || a is LexiconToken
@@ -83,6 +91,12 @@ object Lexicon2Java {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // To download the latest lexicons run these commands:
+        // $ git clone --filter=blob:none --sparse https://github.com/bluesky-social/atproto.git
+        // $ cd atproto
+        // $ git sparse-checkout set lexicons
+        // source: https://github.com/orgs/community/discussions/102639#discussioncomment-13824125
+
         val gson = GsonBuilder()
             .registerTypeAdapterFactory(RuntimeTypeAdapterFactory.of(
                 LexiconPrimaryType::class.java, "type"
@@ -108,6 +122,8 @@ object Lexicon2Java {
                 .registerSubtype(LexiconUnion::class.java, "union")
                 .registerSubtype(LexiconUnknown::class.java, "unknown")
                 .registerSubtype(LexiconToken::class.java, "token")
+                .registerSubtype(LexiconPermissionSet::class.java, "permission-set")
+                .registerSubtype(LexiconSubscription::class.java, "subscription")
             )
             .registerTypeAdapterFactory(RuntimeTypeAdapterFactory.of(
                 Lexicon::class.java, "type"
@@ -130,19 +146,21 @@ object Lexicon2Java {
                 .registerSubtype(LexiconUnion::class.java, "union")
                 .registerSubtype(LexiconUnknown::class.java, "unknown")
                 .registerSubtype(LexiconToken::class.java, "token")
+                .registerSubtype(LexiconPermissionSet::class.java, "permission-set")
+                .registerSubtype(LexiconSubscription::class.java, "subscription")
             )
             .create()
 
         val paths = mutableListOf<Path>()
 
-        Files.walk(Path.of("./gen/run/lexicons/app")).use { fileWalk ->
+        Files.walk(Path.of("./gen/run/atproto/lexicons/app")).use { fileWalk ->
             fileWalk.forEach { file ->
                 if (file.pathString.endsWith(".json")) {
                     paths.add(file)
                 }
             }
         }
-        Files.walk(Path.of("./gen/run/lexicons/com")).use { fileWalk ->
+        Files.walk(Path.of("./gen/run/atproto/lexicons/com")).use { fileWalk ->
             fileWalk.forEach { file ->
                 if (file.pathString.endsWith(".json")) {
                     paths.add(file)
@@ -233,19 +251,15 @@ object Lexicon2Java {
             content.append("@javax.annotation.processing.Generated(\"").append(Lexicon2Java::class.qualifiedName).append("\")\n")
             content.append("public class ").append(newClassName).append(" {\n")
 
-            currentClassName = fileId
-            for (entry in file.defs!!.entries) {
-                if (false && entry.key.equals("main")) {
-                    val ayy = entry.value
-
-                    val j = StringBuilder()
-                    j.appendLexiconHeader("", ayy)
-                    content.insert(iiiTeChingue, j)
-
-                    content.appendLexicon(0, file.id!!, className, entry.value, false)
-                    continue
+            try {
+                currentClassName = fileId
+                for (entry in file.defs!!.entries) {
+                    content.appendLexicon(1, file.id + "#" + entry.key, entry.key, entry.value, true)
                 }
-                content.appendLexicon(1, file.id + "#" + entry.key, entry.key, entry.value, true)
+            } catch (e: Throwable) {
+                System.err.println("An exception occurred while writing a file: " + outputFile.name + " w id " + file.id)
+                e.printStackTrace()
+                return@main
             }
 
             content.append("}\n")
@@ -253,7 +267,6 @@ object Lexicon2Java {
             println("Writing " + content.count { it == '\n' } + " lines to " + outputFile.absolutePath + ".")
             Files.writeString(outputFile.toPath(), content.toString())
         }
-
 
         run {
             val s0 = StringBuilder()
@@ -457,8 +470,10 @@ object Lexicon2Java {
                     } else {
                         returnType = "dev.seeight.bsky.BskyObject"
                     }
+
+                    val isRawBlob = input?.encoding == "*/*" && input.schema == null
                     if (input != null) {
-                        if (input.schema?.type != "object") continue
+                        if (!isRawBlob && input.schema?.type != "object") continue
                     }
 
                     val jDoc = StringBuilder()
@@ -466,34 +481,45 @@ object Lexicon2Java {
                     if (jDoc.isNotBlank())
                         s2.appendJavaDocDescription("\t", jDoc.toString())
 
+
                     s2.append("\tpublic ").append(returnType).append(' ')
                         .append(methodName).append("(")
 
                     val props = (input?.schema as? LexiconObject)?.properties
-                    props?.let {
-                        var first = true
-                        for (e in it.entries) {
-                            if (first) first = false else s2.append(", ")
-                            s2.append(getType(entry.key, e.value)).append(" ").append(e.key)
+                    if (isRawBlob) {
+                        s2.append("dev.seeight.bsky.UploadBlob blob")
+                    } else {
+                        props?.let {
+                            var first = true
+                            for (e in it.entries) {
+                                if (first) first = false else s2.append(", ")
+                                s2.append(getType(entry.key, e.value)).append(" ").append(e.key)
+                            }
                         }
                     }
 
                     s2.append(")").append(" {\n")
 
-                    s2.append("\t\treturn api.xrpcPost(")
+                    if (isRawBlob)
+                        s2.append("\t\treturn api.xrpcPostRaw(")
+                    else
+                        s2.append("\t\treturn api.xrpcPost(")
                     s2.append(getRemappedJavaRef(currentClassName)).append(".class, ")
                     s2.append(returnType).append(".class, ")
-                    val z = entry.value.input
-                    if (z != null) {
-                        s2.append("new ").append(refMap["$key#Input"] ?: throw AssertionError()).append("(")
-                        if (props != null) {
-                            var first = true
-                            for (e in props.entries) {
-                                if (first) first = false else s2.append(", ")
-                                s2.append(e.key)
+                    if (input != null) {
+                        if (isRawBlob) {
+                            s2.append("blob")
+                        } else {
+                            s2.append("new ").append(refMap["$key#Input"] ?: throw AssertionError()).append("(")
+                            if (props != null) {
+                                var first = true
+                                for (e in props.entries) {
+                                    if (first) first = false else s2.append(", ")
+                                    s2.append(e.key)
+                                }
                             }
+                            s2.append(")")
                         }
-                        s2.append(")")
                     } else {
                         s2.append("null")
                     }
@@ -586,11 +612,39 @@ object Lexicon2Java {
         when (value) {
             is QueryAndProcedure -> this.appendQueryAndProcedure(level, fullKey, key, value, appendHeaders)
             is LexiconObject -> this.appendObject(level, fullKey, key, value, appendHeaders)
+            is LexiconPermissionSet -> {
+                // TODO: Not implemented...
+                val padding = "\t".repeat(level)
+                this.append(padding).append("public")
+                if (level > 0) this.append(" static")
+                this.append(" class ").append(refNameMap[fullKey] ?: key).append(" implements dev.seeight.bsky.BskyObject {\n").append('\n')
+                this.append(padding).append("}").append('\n')
+                print("Warning: Skipped proper implementation of permission-set.")
+            }
+            is LexiconSubscription -> {
+                // TODO: Not implemented...
+                val padding = "\t".repeat(level)
+                this.append(padding).append("public")
+                if (level > 0) this.append(" static")
+                this.append(" class ").append(refNameMap[fullKey] ?: key).append(" implements dev.seeight.bsky.BskyObject {\n").append('\n')
+
+                appendProperties(level + 1, value.parameters.properties!!, value.parameters.required ?: emptyList())
+
+                this.append(padding).append("}").append('\n')
+                print("Warning: Skipped proper implementation of subscription.")
+            }
             is LexiconToken -> {}
             is LexiconFieldType -> {
                 // ????
                 //this.appendProperty("\t".repeat(level), key, value, false)
                 var yo = "gurt"
+
+                if (value !is LexiconBoolean && value !is LexiconInteger && value !is LexiconString
+                    && value !is LexiconBytes && value !is LexiconCidLink && value !is LexiconPermission
+                    && value !is LexiconBlob && value !is LexiconRef && value !is LexiconUnknown
+                    && value !is LexiconArray
+                    )
+                    throw NotImplementedError(value.javaClass.name)
             }
             is LexiconRecord -> {
                 this.appendRecord(level, fullKey, key, value, appendHeaders)
@@ -895,18 +949,18 @@ object Lexicon2Java {
         this.append(padding).append(" */").append('\n')
     }
 
-    fun getType(key: String?, prop: LexiconFieldType) : String {
+    fun getType(key: String?, prop: LexiconFieldType, native: Boolean = true) : String {
         return when (prop) {
-            is LexiconInteger -> "int"
+            is LexiconInteger -> if (native) "int" else "java.lang.Integer"
             is LexiconString -> "java.lang.String"
-            is LexiconBoolean -> "boolean"
-            is LexiconArray -> "java.util.List<" + getType(key, prop.items!!) + ">"
+            is LexiconBoolean -> if (native) "boolean" else "java.lang.Boolean"
+            is LexiconArray -> "java.util.List<" + getType(key, prop.items!!, false) + ">"
             // is LexiconUnion -> "dev.seeight.bsky.BskyObject /*union*/"
             is LexiconUnion ->
                 unions[prop.getId()]?.uniqueName?.let { "dev.seeight.gen.Unions.$it" }
                 ?:
                 "dev.seeight.bsky.BskyObject /*unknown union*/"
-            is LexiconToken -> "String /*token*/"
+            is LexiconToken -> "java.lang.String /*token*/"
             is LexiconBlob -> "dev.seeight.bsky.Blob"
             is LexiconRef -> {
                 getRemappedJavaRef(prop.ref).replace('#', '.')

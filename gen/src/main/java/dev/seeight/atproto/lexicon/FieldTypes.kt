@@ -98,11 +98,32 @@ class LexiconParams : LexiconFieldType("params") {
 // TODO: This is a barebones implementation
 class LexiconPermission : LexiconFieldType {
     val resource: String
-    public constructor(resource: String) : super("permission") {
+    val inheritAud: Boolean
+    val action: List<String>
+
+    // why is this different????
+    val lxm: List<String>
+    val collection: List<String>
+
+    public constructor(
+        resource: String,
+        inheritAud: Boolean,
+        action: List<String>,
+        lxm: List<String>,
+        collection: List<String>
+    ) : super("permission") {
         this.resource = resource
+        this.inheritAud = inheritAud
+        this.action = action
+        this.lxm = lxm
+        this.collection = collection
     }
     private constructor() : super("permission") {
         this.resource = ""
+        this.inheritAud = false
+        this.action = mutableListOf()
+        this.lxm = mutableListOf()
+        this.collection = mutableListOf()
     }
 }
 
@@ -122,3 +143,46 @@ class LexiconUnknown : LexiconFieldType("unknown") {
 class LexiconToken : LexiconFieldType("token") {
 }
 
+// TODO: Implement this bullshit
+
+class LexiconPermissionSet : LexiconFieldType {
+    val title: String
+    val detail: String
+    val permissions: List<LexiconPermission>
+
+    public constructor(title: String, detail: String, permissions: List<LexiconPermission>) : super("permission-set") {
+        this.title = title
+        this.detail = detail
+        this.permissions = permissions
+    }
+    private constructor() : super("permission-set") {
+        this.title = ""
+        this.detail = ""
+        this.permissions = mutableListOf()
+    }
+}
+
+class LexiconSubscription : LexiconFieldType {
+    val parameters: LexiconParams
+    val errors: List<AnError>
+
+    constructor(parameters: LexiconParams, errors1: List<AnError>) : super("subscription") {
+        this.parameters = parameters
+        this.errors = errors1
+    }
+
+    private constructor() : super("subscription") {
+        this.parameters = LexiconParams()
+        this.errors = mutableListOf()
+    }
+
+    class AnError {
+        val name: String
+        constructor(name: String) {
+            this.name = name
+        }
+        private constructor() {
+            this.name = ""
+        }
+    }
+}

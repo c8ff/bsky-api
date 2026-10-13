@@ -165,6 +165,54 @@ public class BskyApi {
         }
     }
 
+	public <T extends BskyObject> T xrpcPostRaw(Class<? extends BskyOperation> operationClass, Class<T> outputType, @NotNull UploadBlob input) {
+		if (outputType == null) throw new IllegalArgumentException("Output type cannot be null.");
+
+		var path = operationClass.getAnnotation(OperationPath.class);
+		if (path == null) throw new IllegalStateException("XRPC operation doesn't have an 'OperationPath' annotation.");
+
+		var encoding = operationClass.getAnnotation(QEncoding.class);
+		if (encoding == null) throw new IllegalStateException("XRPC operation doesn't have an 'QEncoding' annotation.");
+
+		if (!encoding.output().equals("application/json") && !encoding.output().equals("none")) {
+			throw new UnsupportedOperationException("Not implemented.");
+		}
+
+		if (!encoding.input().equals("*/*"))
+			throw new UnsupportedOperationException("Encoding is not byte input.");
+
+		var pds = this.pdsUrl;
+		if (pds == null) throw new IllegalStateException("lol");
+
+		var url = HttpUrl.get(pds + "/xrpc/" + path.value()).newBuilder();
+		var req = new Request.Builder().url(url.build());
+
+		req.post(RequestBody.create(input.bytes, MediaType.parse(input.mimeType)));
+
+		addHeaders(req, false);
+		try (var response = client.newCall(req.build()).execute()) {
+			if (encoding.output().equals("none")) {
+				if (response.code() != HttpURLConnection.HTTP_OK) {
+					throw new RuntimeException("Response code was not OK: " + response.code());
+				}
+
+				return null;
+			}
+
+			String string = response.body().string();
+			JsonElement e = JsonParser.parseString(string);
+			if (response.code() != HttpURLConnection.HTTP_OK) {
+				if (e instanceof JsonObject z && z.has("error")) {
+					throw new BskyError(z.get("error").getAsString(), z.get("message").getAsString());
+				}
+				throw new RuntimeException("Response code was not OK: " + response.code());
+			}
+			return gson.fromJson(e, outputType);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
     public <T extends BskyObject> T xrpcGet(Class<? extends BskyOperation> operationType, Class<T> outputType, @Nullable BskyOperation operation) {
         if (outputType == null) throw new IllegalArgumentException("Output type cannot be null.");
 

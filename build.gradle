@@ -63,6 +63,7 @@ idea {
 java {
     withSourcesJar()
     withJavadocJar()
+    targetCompatibility = "21"
 }
 
 sourceSets {

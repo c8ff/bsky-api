@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class Simplifier {
-	public static @Nullable Unions.Union11 getQuotePost(
+	public static @Nullable Unions.Union13 getQuotePost(
 		Defs.PostView post
 	) {
 		if (post.embed == null) return null;
@@ -51,11 +51,11 @@ public class Simplifier {
 		throw new UnsupportedOperationException("Unsupported embed type: " + post.embed.getClass().getName());
 	}
 
-	public static @Nullable Unions.Union11 getQuotePost(
+	public static @Nullable Unions.Union13 getQuotePost(
 		Record.ViewRecord post
 	) {
 		if (post.embeds == null) return null;
-		for (Unions.Union12 embed : post.embeds) {
+		for (var embed : post.embeds) {
 			// what
 			if (embed instanceof Record.View j) {
 				return j.record;
@@ -96,18 +96,18 @@ public class Simplifier {
 
 	public static class SimplifiedMedia {
 		public String alt;
-		public String url;
-		public String thumbnailUrl;
+		public @NotNull String url;
+		public @NotNull String thumbnailUrl;
 		public int width;
 		public int height;
-		public MediaType type;
+		public @NotNull MediaType type;
 
 		public enum MediaType {
 			IMAGE,
 			VIDEO
 		}
 
-		public SimplifiedMedia(String alt, String url, String thumbnailUrl, int width, int height, MediaType type) {
+		public SimplifiedMedia(String alt, @NotNull String url, @NotNull String thumbnailUrl, int width, int height, @NotNull MediaType type) {
 			this.alt = alt;
 			this.url = url;
 			this.thumbnailUrl = thumbnailUrl;
@@ -116,7 +116,11 @@ public class Simplifier {
 			this.type = type;
 		}
 
-		public SimplifiedMedia() {
+		protected SimplifiedMedia() {
+			this.alt = "";
+			this.url = "";
+			this.thumbnailUrl = "";
+			this.type = MediaType.IMAGE;
 		}
 
 		public static @NotNull List<SimplifiedMedia> extractFromPost(
@@ -163,7 +167,7 @@ public class Simplifier {
 				));
 			} else if (gurt instanceof Gallery.View view) {
 				var o = new ArrayList<SimplifiedMedia>();
-				for (Unions.Union10 item : view.items) {
+				for (var item : view.items) {
 					if (!(item instanceof Gallery.ViewImage image)) throw new AssertionError();
 					o.add(new SimplifiedMedia(
 						image.alt,

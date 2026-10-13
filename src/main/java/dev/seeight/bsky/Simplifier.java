@@ -218,7 +218,12 @@ public class Simplifier {
 				));
 			}
 
-			if (gurt instanceof External.View || gurt instanceof Record.View || gurt instanceof Record.Main) {
+			// TODO: Add support for links lol
+			if (gurt instanceof External.View || gurt instanceof External.Main) {
+				return Collections.emptyList();
+			}
+
+			if (gurt instanceof Record.View || gurt instanceof Record.Main) {
 				return Collections.emptyList();
 			}
 			throw new UnsupportedOperationException("Unsupported object type: " + gurt.getClass().getName());
